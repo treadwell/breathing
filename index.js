@@ -1,98 +1,47 @@
-//  TO DO
-//  2. $txt color contrast
-//  3. kill references to document.getElementById() - $breathCircle
+let $inhaleSec = null;
+let $duration = null;
+let $playTone = null;
+let $playVoice = null;
+let $playBar = null;
+let $volume = null;
+let $txt = null;
+let $status = null;
+let $startBtn = null;
+let $stopBtn = null;
+let $breathCircle = null;
+let $timers = null;
+let audioCtx = null;
+let preferredVoice = null;
 
-let $inhaleSec = null
-let $duration = null
-let $playTone = null
-let $playVoice = null
-let $playBar = null
-let $volume = null
-let $txt = null
-let $breathCircle = null
-let $timers = null
-
-function Player () {
-    // let...
-    let counter = 1
-    return {
-        // methods go here
-        get() {
-            return counter
-        },
-        inc() {
-            counter++
-        }
-    }
-}
-
-$(document).ready(() =>
+$(document).ready(() => {
     $(document.body).append(
-        $("<div>")
-            .append(
-                $("<p>")
-                    .html("Seconds per inhale/exhale (sec): ")
-                    .append(
+        $("<main>", { class: "app-shell" }).append(
+            $("<section>", { class: "panel controls" }).append(
+                $("<h1>").text("Breathing Timer"),
+                $("<p>", { class: "subtitle" }).text("Set your pace, then follow inhale and exhale prompts."),
+                $("<div>", { class: "field-grid" }).append(
+                    $("<label>", { class: "field" }).append(
+                        $("<span>", { class: "field-label" }).text("Seconds per inhale/exhale"),
                         $inhaleSec = $("<input>", {
                             id: "inhalesec",
                             type: "number",
+                            min: 1,
+                            step: 1,
                             value: 5
                         })
-                    )
-            ),
-        $("<div>")
-            .append(
-                $("<p>")
-                    .html("Length of practice (minutes): ")
-                    .append(
+                    ),
+                    $("<label>", { class: "field" }).append(
+                        $("<span>", { class: "field-label" }).text("Session length (minutes)"),
                         $duration = $("<input>", {
                             id: "duration",
                             type: "number",
-                            value: 90
+                            min: 1,
+                            step: 1,
+                            value: 20
                         })
-                    )
-            ),
-        $("<div>")
-            .append(
-                $("<p>")
-                    .append(
-                        $playTone = $("<input>", {
-                            type: "checkbox",
-                            id: "tones",
-                            checked: false
-                        })
-                    )
-                    .append(" Play tones")
-            ),
-        $("<div>")
-            .append(
-                $("<p>")
-                    .append(
-                        $playVoice = $("<input>", {
-                            type: "checkbox",
-                            id: "voice",
-                            checked: false
-                        })
-                    )
-                    .append(" Play voice")
-            ),
-        $("<div>")
-            .append(
-                $("<p>")
-                    .append(
-                        $playBar = $("<input>", {
-                            type: "checkbox",
-                            id: "bar",
-                            checked: true
-                        })
-                    )
-                    .append(" Progress circle")
-            ),
-        $("<div>")
-            .append(
-                $("<p>")
-                    .html("Volume")
-                    .append(
+                    ),
+                    $("<label>", { class: "field" }).append(
+                        $("<span>", { class: "field-label" }).text("Tone volume"),
                         $volume = $("<input>", {
                             type: "range",
                             id: "volSlide",
@@ -103,154 +52,291 @@ $(document).ready(() =>
                             class: "slider"
                         })
                     )
+                ),
+                $("<div>", { class: "toggle-grid" }).append(
+                    toggleControl("tones", "Play tones", false, el => $playTone = el),
+                    toggleControl("voice", "Play voice", false, el => $playVoice = el),
+                    toggleControl("bar", "Animate circle", true, el => $playBar = el)
+                ),
+                $("<div>", { class: "actions" }).append(
+                    $startBtn = $("<button>", { class: "btn start" })
+                        .text("Start")
+                        .on("click", () => breathe()),
+                    $stopBtn = $("<button>", { class: "btn stop", disabled: true })
+                        .text("Stop")
+                        .on("click", () => stopSession({ statusText: "Stopped." }))
+                ),
+                $status = $("<p>", { class: "status" }).text("Ready.")
             ),
-        $("<div>")
-            .append(
-                $("<button>")
-                    .html("Start Timer")
-                    .on("click", () => breathe()))
-            .append(
-                $("<button>")
-                    .html("Stop Timer")
-                    .on("click", () => {
-                        // console.log("stop")
-                        clearInterval($timers[0])
-                        clearInterval($timers[1])
-                        clearTimeout($timers[2])
-                        clearTimeout($timers[3])
-                        clearTimeout($timers[4])
-                        $breathCircle.css("animation-name", "none")
-                        $txt.text("")
-                    })
-            ),
-        $("<div>", {
-            id: "breathProgressCircle"
-        })
-            .append(
-                $breathCircle = $("<div>", {
-                    id: "breathCircle"
-                }),
-                $txt = $("<div>", {
-                    id: "txt"
-                })
+            $("<section>", { class: "panel stage" }).append(
+                $("<div>", { id: "breathProgressCircle" }).append(
+                    $breathCircle = $("<div>", { id: "breathCircle" }),
+                    $txt = $("<div>", { id: "txt" }).text("ready")
+                )
             )
-        ))
+        )
+    );
+
+    primeVoiceSelection();
+    if (window.speechSynthesis) {
+        window.speechSynthesis.onvoiceschanged = () => {
+            primeVoiceSelection();
+        };
+    }
+});
+
+function toggleControl(id, label, checked, assignRef) {
+    const $input = $("<input>", {
+        type: "checkbox",
+        id: id,
+        checked: checked
+    });
+
+    assignRef($input);
+
+    return $("<label>", { class: "toggle", for: id }).append(
+        $input,
+        $("<span>").text(label)
+    );
+}
 
 function breathe() {
-    const inhaleSec = $inhaleSec.val()
-    const duration = $duration.val()
+    const inhaleSec = Number($inhaleSec.val());
+    const durationMin = Number($duration.val());
 
-    const cycle = 2 * inhaleSec * 1000; // ms for a full breath cycle
-    const duration_ms = duration * 60 * 1000
+    if (!Number.isFinite(inhaleSec) || inhaleSec <= 0 || !Number.isFinite(durationMin) || durationMin <= 0) {
+        $status.text("Enter values greater than 0.");
+        return;
+    }
 
-    $timers = []  // create separate inhale and exhale timers
+    stopSession({ keepPrompt: true, keepStatus: true, keepButtons: true });
 
-    // initiate breathing before setInterval kicks in
-    $timers[2] = setTimeout(() => command("inhale", cycle), 0)
-    $timers[3] = setTimeout(() => command("exhale", cycle), cycle / 2)
+    if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+    }
 
-    // inhale timer on cycle
-    $timers[0] = setInterval(() => command("inhale", cycle), cycle)
+    const cycle = inhaleSec * 2 * 1000;
+    const durationMs = durationMin * 60 * 1000;
 
-    $timers[4] = setTimeout(() => {  // delays exhale timer by half a cycle
+    $startBtn.prop("disabled", true);
+    $stopBtn.prop("disabled", false);
+    $status.text("Session running...");
 
-        // exhale timer
-        $timers[1] = setInterval(() => command("exhale", cycle), cycle)
-        
-        // clear timers.  
-        // Position here to make sure there are available timer IDs
-        setTimeout(() => {
-            clearInterval($timers[0])
-            clearInterval($timers[1])
-        }, duration_ms)
+    $timers = {
+        firstInhale: setTimeout(() => command("inhale", cycle), 0),
+        firstExhale: setTimeout(() => command("exhale", cycle), cycle / 2),
+        inhaleInterval: setInterval(() => command("inhale", cycle), cycle),
+        delayedExhaleInterval: setTimeout(() => {
+            $timers.exhaleInterval = setInterval(() => command("exhale", cycle), cycle);
+        }, cycle / 2),
+        sessionEnd: setTimeout(() => {
+            stopSession({ statusText: "Session complete.", promptText: "done" });
+        }, durationMs)
+    };
+}
 
-    }, cycle / 2)
+function stopSession({
+    statusText = "Ready.",
+    promptText = "ready",
+    keepPrompt = false,
+    keepStatus = false,
+    keepButtons = false
+} = {}) {
+    if ($timers) {
+        clearTimeout($timers.firstInhale);
+        clearTimeout($timers.firstExhale);
+        clearInterval($timers.inhaleInterval);
+        clearTimeout($timers.delayedExhaleInterval);
+        clearInterval($timers.exhaleInterval);
+        clearTimeout($timers.sessionEnd);
+        $timers = null;
+    }
+
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+
+    if ($breathCircle) {
+        $breathCircle.css("animation-name", "none");
+    }
+
+    if (!keepPrompt && $txt) {
+        $txt.text(promptText);
+    }
+
+    if (!keepStatus && $status) {
+        $status.text(statusText);
+    }
+
+    if (!keepButtons && $startBtn && $stopBtn) {
+        $startBtn.prop("disabled", false);
+        $stopBtn.prop("disabled", true);
+    }
+}
+
+function pickBestEnglishVoice(voices) {
+    const englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
+    if (!englishVoices.length) {
+        return null;
+    }
+
+    const preferredNameHints = [
+        "siri",
+        "samantha",
+        "ava",
+        "allison",
+        "karen",
+        "moira",
+        "daniel",
+        "google us english",
+        "google uk english female",
+        "microsoft aria online",
+        "microsoft jenny online",
+        "jenny",
+        "aria",
+        "zira"
+    ];
+
+    const scoredVoices = englishVoices.map(voice => {
+        const name = (voice.name || "").toLowerCase();
+        const uri = (voice.voiceURI || "").toLowerCase();
+
+        let score = 0;
+        if (!voice.localService) {
+            score += 4;
+        }
+        if (voice.default) {
+            score += 2;
+        }
+        if (voice.lang.toLowerCase() === "en-us") {
+            score += 1;
+        }
+
+        for (const hint of preferredNameHints) {
+            if (name.includes(hint) || uri.includes(hint)) {
+                score += 8;
+                break;
+            }
+        }
+
+        return { voice, score };
+    });
+
+    scoredVoices.sort((a, b) => b.score - a.score);
+    return scoredVoices[0].voice;
+}
+
+function primeVoiceSelection() {
+    if (!window.speechSynthesis) {
+        return;
+    }
+
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices || !voices.length) {
+        return;
+    }
+
+    preferredVoice = pickBestEnglishVoice(voices);
 }
 
 function say({
-        voice = 10,
-        voiceURI = "native", 
-        volume = 0.5,
-        rate = 1.0,
-        pitch = 0.8,
-        m = "Hello world.",
-        lang = "en-US"
-    }) {
-        var voices = window.speechSynthesis.getVoices();
-        speechSynthesis.speak(Object.assign(new SpeechSynthesisUtterance(), {
-            voice: voices[voice],  // en has 1, 10, 17
-            voiceURI: voiceURI,
-            volume: volume,
-            rate: rate,
-            pitch: pitch,
-            text: m,
-            lang: lang
-    }))
+    volume = 0.5,
+    rate = 0.88,
+    pitch = 1.0,
+    m = "Hello world.",
+    lang = "en-US"
+}) {
+    const synth = window.speechSynthesis;
+    if (!synth) {
+        return;
+    }
+
+    if (!preferredVoice) {
+        primeVoiceSelection();
+    }
+
+    // Cancel queued prompts so speech stays clean and does not sound clipped/stacked.
+    synth.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(m);
+    const selectedVoice = preferredVoice || pickBestEnglishVoice(synth.getVoices());
+
+    if (selectedVoice) {
+        utterance.voice = selectedVoice;
+        utterance.lang = selectedVoice.lang || lang;
+    } else {
+        utterance.lang = lang;
+    }
+
+    utterance.volume = volume;
+    utterance.rate = rate;
+    utterance.pitch = pitch;
+    synth.speak(utterance);
 }
 
 function beep({
-    duration = 125, //duration of the tone in milliseconds. Default is 500
-    frequency = 500, //frequency of the tone in hertz. default is 440
-    volume = 0.5, //volume of the tone. Default is 1, off is 0.
-    type = "triangle", //type of tone. Possible values are sine, square, sawtooth, triangle, and custom. Default is sine.
-    callback = () => console.log("callback test") //callback to use on end of tone
-    }) {
-    var audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
-    var oscillator = audioCtx.createOscillator()
-    var gainNode = audioCtx.createGain()
+    duration = 130,
+    frequency = 500,
+    volume = 0.5,
+    type = "triangle",
+    callback = () => {}
+}) {
+    if (!audioCtx) {
+        const Ctor = window.AudioContext || window.webkitAudioContext || window.audioContext;
+        if (!Ctor) {
+            return;
+        }
+        audioCtx = new Ctor();
+    }
 
-    gainNode.connect(audioCtx.destination)
-    gainNode.gain.value = volume
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
 
-    oscillator.connect(gainNode)
-    oscillator.frequency.value = frequency
-    oscillator.type = type
-    oscillator.onended = callback
-    oscillator.start()
+    gainNode.connect(audioCtx.destination);
+    gainNode.gain.value = volume;
 
-    setTimeout(() => oscillator.stop(), duration)
+    oscillator.connect(gainNode);
+    oscillator.frequency.value = frequency;
+    oscillator.type = type;
+    oscillator.onended = callback;
+    oscillator.start();
+
+    setTimeout(() => oscillator.stop(), duration);
 }
 
-
-
 function command(message, cycle) {
-    const playTone = $playTone.prop("checked")
-    const playVoice = $playVoice.prop("checked")
-    const playBar = $playBar.prop("checked")
-    const volume = $volume.val()
+    const playTone = $playTone.prop("checked");
+    const playVoice = $playVoice.prop("checked");
+    const playBar = $playBar.prop("checked");
+    const volume = Number($volume.val());
 
-    $txt.text(message)
+    $txt.text(message);
 
     if (playTone) {
-        if (message === "inhale") {
-            beep({ frequency: 1000, volume: volume })
-        } else {
-            beep({ volume: volume })
-        }
+        beep({
+            frequency: message === "inhale" ? 960 : 480,
+            volume: volume
+        });
     }
 
     if (playVoice) {
-        if (message === "inhale") {
-            say({ m: "Inhale." })
-        } else {
-            say({ m: "Exhale." })
-        }
+        say({
+            m: message === "inhale" ? "Breathe in." : "Breathe out.",
+            volume: Math.min(volume + 0.2, 1)
+        });
     }
 
     if (playBar) {
-        // move(message, cycle)
-        moveCircle(message, cycle)
+        moveCircle(message, cycle);
+    } else {
+        $breathCircle.css("animation-name", "none");
     }
-
 }
 
 function moveCircle(message, cycle) {
-    // const elem = document.getElementById("breathCircle")
-    // const elem = $("#breathCircle")
-    // const elem = $breathCircle
-    $breathCircle.css("animation-duration", cycle / 2 + "ms")
+    $breathCircle.css("animation-duration", `${cycle / 2}ms`);
     $breathCircle.css("animation-name", {
         inhale: "inhaleCircle",
         exhale: "exhaleCircle"
-    }[message] || console.error("invalid message: " + message))
+    }[message] || "none");
 }
