@@ -16,10 +16,17 @@ A lightweight browser app for paced breathing practice with optional voice, tone
 
 No build step is required.
 
+Option 1 (direct file open):
 1. Open `index.html` in a modern browser.
 2. Set your session values.
 3. Click **Start Timer**.
 4. Click **Stop Timer** to end early.
+
+Option 2 (local static server):
+```bash
+python3 -m http.server 8080
+```
+Then open `http://localhost:8080`.
 
 ## Project Structure
 
