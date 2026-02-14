@@ -1,0 +1,51 @@
+#breathProgressCircle {
+    width: 300px;
+    height: 300px;
+    position: relative;
+}
+
+#breathCircle {
+    height: 100%;
+    width: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #5cabff, #000);
+    transform: scale3d(0, 0, 1);
+    /* the following line drives hardware acceleration */
+    will-change: transform;  
+    animation-timing-function: linear;
+    animation-iteration-count: 1;
+    animation-direction: normal;
+    animation-fill-mode: forwards;
+    transform-origin: center;
+}
+
+#txt {
+    position: absolute;
+    top: 45%;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 25px;
+    text-transform: uppercase;
+
+    color: black;
+    /* mix-blend-mode: lighten; */
+}
+
+@keyframes inhaleCircle {
+    0% {
+        transform: scale3d(0, 0, 1);
+    }
+    100% {
+        transform: scale3d(1, 1, 1);
+    }
+}
+
+@keyframes exhaleCircle {
+    0% {
+        transform: scale3d(1, 1, 1);
+    }
+    100% {
+        transform: scale3d(0, 0, 1);
+    }
+}
